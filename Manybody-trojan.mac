@@ -1,0 +1,213 @@
+/* [wxMaxima: input   start ] */
+load(draw);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Add a celestial body's configuration to the lists 'mass and 'config. */
+/* The configuration consists of coordinates and velocity components. */
+/* Assumes general 3D simulation. Modify and remove z-components to save 
+   resources if you only need 2D simulation. */
+addbody(m, x, y, z, vx, vy, vz):=
+    block(
+        mass: append(mass,[m]),
+        config: append(config,[x, y, z, vx, vy, vz])
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Take part of a list 'lst between indices 'a and 'b */
+partlist(lst, a, b):=map(lambda([j], lst[j]),makelist(n, n, a, b))$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Test case for a fictitious L4 Trojan object */
+/* Set up initial values of mass(m), orbital radius(r), coordinates(x, y, and z),
+   and velocity components(vx, vy, and vz) for Sun(S), Jupiter(J) and the Trojan(T)
+   : case for Trojan initial speed 0.999 of Jovian orbital speed */
+mJ:1.89e27$ 
+mS: 1.9885e30$
+rJ0: 778e9$
+vJ0: 1.307e4$
+/* omega: vJ0 / rJ0$ */
+rS0: rJ0* mJ / mS$  vS0: vJ0 * mJ / mS$
+mT: 1e5$ rT0: rJ0$  vT0: vJ0 * 0.999$  alpha: %pi/3$  beta: alpha + %pi/2$
+xT0: rT0 * cos(alpha)$ yT0: rT0 * sin(alpha)$
+vxT0: vT0 * cos(beta)$ vyT0: vT0 * sin(beta)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Prepare empty lists for the masses and configuration space */
+mass: []$
+config: []$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Fill the configuration space for initials field */
+addbody(mS, -rS0, 0, 0, 0, -vS0, 0) $/* Sun data */
+addbody(mJ, rJ0, 0, 0, 0, vJ0, 0) $ /* Jupiter data */
+addbody(mT, xT0, yT0,0,vxT0,vyT0,0)$ /* A fictitious Trojan object */;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Set up the symbols list for vars field */
+symbs: []$
+symb1: ['xS, 'yS, 'zS, 'vxS, 'vyS, 'vzS]$
+symb2: ['xJ, 'yJ, 'zJ, 'vxJ, 'vyJ, 'vzJ]$
+symb3: ['xT, 'yT, 'zT, 'vxT, 'vyT, 'vzT]$
+symbs: append(symbs, symb1, symb2, symb3)$
+dim: 3$
+cdim: 2*dim$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Set up the expressions list for ODEs field */
+gg: 6.67e-11$
+n: length(mass)$
+odes: []$
+for i:1 thru n do (
+    k : (i-1)*cdim,
+     [x, y, z, vx, vy, vz] :  partlist(symbs, k+1, k+cdim),
+    [ax, ay, az]: [0,0,0],
+    for j thru n do(
+        if j#i then (
+        kk: (j-1)*cdim,
+        m2: mass[j],
+        [x2, y2, z2]: partlist(symbs, kk+1,kk+dim),
+        [dx, dy, dz]: [x2-x, y2-y, z2-z],
+        dist3: (dx^2 + dy^2 + dz^2)^(3/2),
+        kk : gg*m2,
+        ax: ax + kk*dx/dist3,
+        ay: ay + kk*dy/dist3,
+        az: az + kk*dz/dist3
+    )
+),
+odes: append(odes, [vx, vy, vz, ax, ay, az])
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* sample one of the ODE expressions */
+odes[4];
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Ted Woollett's adaptive step-size RKF45 routine 
+   or you can just use rk */
+load("./myrkf45.mac");
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+t0: 0$
+tb: 1e10 $
+dt: 1e8$
+sol: rkf45(odes, symbs, config,[t, t0, tb,dt])$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+nn: length(sol);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Tear down the result into each body and components */
+n: length(mass)$
+time: makelist(p[1], p, sol)$
+for i : 1 thru n do (
+    k: (i-1)*cdim,
+    for j: 1 thru cdim do
+        soln[i][j]: makelist( p[k+j+1], p, sol ) 
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* function to compose list of 2d points from given two lists */
+compose2dpoints(lst1, lst2):=map(lambda([a,b],[a,b]),lst1,lst2)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Draw the Trojan in the inertial coords. */
+draw2d(
+    points_joined=true,
+    point_size=0,
+    grid=true,
+    points(compose2dpoints(soln[3][1], soln[3][2]));
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* azimuth angle of Jupiter */
+alphaJ: map(atan2, soln[2][2]-soln[1][2], soln[2][1]-soln[1][1])$
+/* [wxMaxima: input   end   ] */
+
+/* Transform the coords into that rotates with Jupiter */
+/* [wxMaxima: input   start ] */
+cosJ: cos(-alphaJ)$
+sinJ: sin(-alphaJ)$
+/* Trojan */
+Trojrelx: cosJ * soln[3][1] - sinJ * soln[3][2]$
+Trojrely: sinJ * soln[3][1] + cosJ * soln[3][2]$
+
+/* Jupiter */
+relxJ: cosJ* soln[2][1] - sinJ * soln[2][2]$
+relyJ: sinJ * soln[2][1] + cosJ * soln[2][2]$
+
+/* Sun */
+relxS: cosJ * soln[1][1] - sinJ* soln[1][2]$
+relyS: sinJ* soln[1][1] + cosJ * soln[1][2]$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Draw the Trojan, Jupiter, and Sun in the rotating coords. */
+draw2d(
+    proportional_axes='xy,
+    points_joined=true,
+    point_size=0,
+    grid=true,
+    points(compose2dpoints(Trojrelx, Trojrely)),
+    point_type=7,
+    point_size=1,
+    color="green",
+    points(compose2dpoints(relxJ, relyJ)),
+    point_type=7,
+    point_size=3,
+    color="red",
+    points(compose2dpoints(relxS, relyS))
+);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Save the raw simulation data into human readable file for later use, 
+   especially for the use in Gnuplot */
+filep: openw("Trojan-.999vJ.txt")$
+/* # time xS yS zS vxS vyS vzS xJ yJ zJ vxJ vyJ vzJ xT yT zT vxT vyT vzT */
+write_data(sol, filep, space)$
+close(filep)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Save the rotating coords data as well. */
+filep: openw("Trojan-rel-.999vJ.txt");
+nn: length(time)$
+/* # time relxS relyS relxJ relxJ relxT relyT */
+write_data(makelist([time[i],relxS[i],relyS[i],relxJ[i],relyJ[i],Trojrelx[i],Trojrely[i]], i, 1,nn), filep, " ");
+close(filep);
+/* [wxMaxima: input   end   ] */
+
+
+
