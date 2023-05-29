@@ -1,0 +1,744 @@
+/* [wxMaxima: input   start ] */
+load(draw)$  /* draw 패키지를 불러 온다. */
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 천체 목록을 'mass 와 'config에 추가하는 함수. */
+/* 배위(configuration) 은 천체의 위치 좌표와 속도 벡터 성분들을 담고 있는 정보. */
+/* 3차원 시뮬레이션을 위해 각각 좌표값 3개와 속도 벡터 성분 3개를 담도록 되어 있음. */
+addbody(m, x, y, z, vx, vy, vz):=
+    block(
+        mass: append(mass,[m]),
+        config: append(config,[x, y, z, vx, vy, vz])
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 두 개의 좌표값 목록을 받아 2차원 좌표 순서쌍의 목록으로 만들어 주는 함수 */
+compose2dpoints(lst1, lst2):=map(lambda([a,b],[a,b]),lst1,lst2)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 세 개의 좌표값 목록을 받아 3차원 좌표 순서쌍의 목록으로 만들어 주는 함수  */
+compose3dpoints(lst1, lst2, lst3):=map(lambda([a, b, c], [a, b, c]), lst1, lst2, lst3)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 주어진 목록의 i 부터 j 까지 부분 목록을 추출*/
+ithruj(lst, i, j):=firstn(rest(lst, i-1),j-i+1);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 라그랑지 점(L4) 근처를 맴도는 트로이 소행성의 운동 예제 */
+/* Set up initial values of mass(m), orbital radius(r), coordinates(x, y, and z),
+   and velocity components(vx, vy, and vz) for Sun(S), Jupiter(J) and the Trojan(T)
+   : case for Trojan initial speed 0.99 of Jovian orbital speed */
+mJ:1.89e27$ /* 목성 질량 (kg) */
+mS: 1.9885e30$ /* 태양 질량 (kg) */
+rJ0: 778e9$    /* 목성과 태양 사이의 평균 거리(m) */
+vJ0: 1.307e4$  /* 목성의 평균 궤도 속력 (m/s) */
+rS0: rJ0* mJ / mS$ /* 태양의 궤도 반지름 (m) -- 목성과 태양의 공통 질량 중심(c.o.m.)을 공전하는 것으로 설절 */ 
+vS0: vJ0 * mJ / mS$ /* 태양의 궤도 속력*/
+mT: 1e5$ /* 가상적인 트로이 소행성의 질량 (kg) -- 목성에 비해 매우 작게 설정한다. */
+rT0: rJ0$  /* 트로이 소행성과 태양의 거리 (m) -- 목성과 같게 설정  */
+vT0: vJ0 * 0.99$  /* 트로이 소행성의 초기 궤도 속력 (m/s) -- 목성과 약간 다르게 출발하도록 설정 */
+omega: vJ0/rJ0$
+alpha: %pi/3$  /* L4점의 방위각 (rad) -- 태양에서 목성 방향 기준, 트로이 소행성의 출발 위치 */
+beta: alpha + %pi/2$ /* 트로이 소행성의 초기 속도 방향 (rad) */
+xT0: rT0 * cos(alpha)$ yT0: rT0 * sin(alpha)$ /* 태양에 대한 목성의 초기 상대 위치 좌표 */
+vxT0: vT0 * cos(beta)$ vyT0: vT0 * sin(beta)$ /* 트로이 소행성의 초기 속도 */
+vzT0: vJ0*0.1$ /* 트로이 위성의 z축 방향 속도를 목성 공전 속도의 0.1배로 설정함 */
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Prepare empty lists for the masses and configuration space */
+mass: []$
+config: []$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Fill the configuration space for initials field */
+addbody(mS, -rS0, 0, 0, 0, -vS0, 0) $/* Sun data */
+addbody(mJ, rJ0-rS0, 0, 0, 0, vJ0, 0) $ /* Jupiter data -- 태양과 목성의 c.o.m. 기준*/
+addbody(mT, xT0-rS0, yT0,0,vxT0,vyT0,vzT0)$ /* 트로이 위성 -- 태양과 목성의 c.o.m. 기준 */
+
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Set up the symbols list for vars field */
+symbs: []$
+symb1: ['xS, 'yS, 'zS, 'vxS, 'vyS, 'vzS]$
+symb2: ['xJ, 'yJ, 'zJ, 'vxJ, 'vyJ, 'vzJ]$
+symb3: ['xT, 'yT, 'zT, 'vxT, 'vyT, 'vzT]$
+symbs: append(symbs, symb1, symb2, symb3)$
+dim: 3$
+cdim: 2*dim$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 각각의 천체의 가속도에 대한 계산식을 만들어 준다 */
+gg: 6.67e-11$
+n: length(mass)$
+odes: []$
+for i:1 thru n do (
+    k : (i-1)*cdim,
+     [x, y, z, vx, vy, vz] :  ithruj(symbs, k+1, k+cdim),
+    [ax, ay, az]: [0,0,0],
+    for j thru n do(
+        if j#i then (
+        kk: (j-1)*cdim,
+        m2: mass[j],
+        [x2, y2, z2]: ithruj(symbs, kk+1,kk+dim),
+        [dx, dy, dz]: [x2-x, y2-y, z2-z],
+        dist3: (dx^2 + dy^2 + dz^2)^(3/2),
+        kk : gg*m2,
+        ax: ax + kk*dx/dist3,
+        ay: ay + kk*dy/dist3,
+        az: az + kk*dz/dist3
+    )
+),
+odes: append(odes, [vx, vy, vz, ax, ay, az])
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 만들어진 계산식 중의 하나를 확인해 본다 */
+odes[4];
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+compile(functions); /* 정의한 함수들의 실행속도를 높이기 위해 컴파일해 준다 */
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 시간 범위 및 간격을 지정하고 시뮬레이션을 수행하여 결과를 sol에 저장한다. */
+t0: 0$
+tb: 2e10 $
+dt: 1e6$
+sol: rk(odes, symbs, config,[t, t0, tb, dt])$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+n: length(sol);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 데이타 포인트가 너무 많으면 결과 분석시 
+컴퓨터의 메모리가 감당 못할 수 있으므로 
+샘플링을 해서 데이타 포인트를 줄여준다. */
+
+sol2 : makelist(sol[k], k, 1, n, 10)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+nn: length(sol2);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+sol2[nn];
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+soln: []$
+n: length(mass)$
+for i:1 thru n do (
+    soln: append(soln, [[]])
+)$
+for i: 1 thru n do(
+    for j:1 thru cdim do(
+        soln[i]: append(soln[i], [[]])
+    )
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 사용하기 편하도록 각 천체별로 시뮬레이션 결과를 재구성하여 저장하기 위한 틀:*/
+soln;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 각 천체별로 시뮬레이션 결과를 재구성한다 */
+n: length(mass)$
+ts: makelist(p[1], p, sol2)$
+for i : 1 thru n do (
+    k: (i-1)*cdim,
+    for j: 1 thru cdim do
+        soln[i][j]: makelist( p[k+j+1], p, sol2 ) 
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 관성좌표계에서 천체들의 운동 경로를 플로팅해 본다. */
+wxdraw2d(
+    points_joined=true,
+    point_type = 7,
+    point_size=0,
+    grid=true,
+    points(compose2dpoints(soln[3][1], soln[3][2])),
+    color = green,
+    points(compose2dpoints(soln[2][1], soln[2][2])),
+    point_size=2,
+    color = red,
+    points(compose2dpoints(soln[1][1], soln[1][2]))
+);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 3차원 관성 좌표계에서 천체들의 운동 경로를 플로팅해 본다. 마우스를 드래그하여 여러 각도에서 살펴본다.*/
+draw3d(
+    points_joined=true,
+    point_type = 7,
+    point_size=0,
+    grid=true,
+    points(compose3dpoints(soln[3][1], soln[3][2], soln[3][3])),
+    color = green,
+    points(compose3dpoints(soln[2][1], soln[2][2], soln[2][3])),
+    point_size=2,
+    color = red,
+    points(compose3dpoints(soln[1][1], soln[1][2], soln[1][3]))
+);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* Notebook 셀 안에 플로팅하려면 draw 함수 앞에 wx를 덧붙여주면 된다. */
+wxdraw3d(
+    points_joined=true,
+    point_type = 7,
+    point_size=0,
+    grid=true,
+    points(compose3dpoints(soln[3][1], soln[3][2], soln[3][3])),
+    color = green,
+    points(compose3dpoints(soln[2][1], soln[2][2], soln[2][3])),
+    point_size=2,
+    color = red,
+    points(compose3dpoints(soln[1][1], soln[1][2], soln[1][3]))
+);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 목성의 방위각 데이타를 따로 추출한다. */
+alphaJ: map(atan2, soln[2][2]-soln[1][2], soln[2][1]-soln[1][1])$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 시뮬레이션 결과를 목성과 함께 회전하는 좌표계로 변환한다 */
+cosJ: cos(-alphaJ)$
+sinJ: sin(-alphaJ)$
+/* Trojan */
+Trojrelx: cosJ * soln[3][1] - sinJ * soln[3][2]$
+Trojrely: sinJ * soln[3][1] + cosJ * soln[3][2]$
+Trojrelz: soln[3][3]$
+/* Jupiter */
+relxJ: cosJ* soln[2][1] - sinJ * soln[2][2]$
+relyJ: sinJ * soln[2][1] + cosJ * soln[2][2]$
+relzJ: soln[2][3]$
+/* Sun */
+relxS: cosJ * soln[1][1] - sinJ* soln[1][2]$
+relyS: sinJ* soln[1][1] + cosJ * soln[1][2]$
+relzS: soln[1][3]$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 회전하는 좌표계에서 천체들의 운동 경로를 플로팅해 본다. */
+wxdraw(gr2d(
+    proportional_axes='xy,
+    points_joined=true,
+    point_size=0,
+    grid=true,
+    color = "blue",
+    points(compose2dpoints(Trojrelx, Trojrely)),
+    point_type=7,
+    point_size=1,
+    color="green",
+    points(compose2dpoints(relxJ, relyJ)),
+    point_type=7,
+    point_size=2,
+    color="red",
+    points(compose2dpoints(relxS, relyS))
+));
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 회전하는 3차원 좌표계에서 천체들의 운동 경로를 플로팅해 본다.  */
+zmin: -1e12$
+wxdraw(gr3d(
+    proportional_axes = xyz,
+    xrange = [-1e12, 1e12],
+    yrange = [-1e12, 1e12],
+    zrange = [-1e12, 1e12],
+    xyplane=zmin,
+    points_joined=true,
+    point_size=0,
+    grid=true,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),compose3dpoints(Trojrelx, Trojrely, Trojrelz))),
+    point_type=7,
+    point_size=1,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),compose3dpoints(relxJ, relyJ, relzJ))),
+    point_type=7,
+    point_size=2,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),compose3dpoints(relxS, relyS, relzS))),
+    points_joined=true,
+    point_size=0,
+    color = 'blue,
+    points(compose3dpoints(Trojrelx, Trojrely, Trojrelz)),
+    point_type=7,
+    point_size=1,
+    color="green",
+    points(compose3dpoints(relxJ, relyJ, relzJ)),
+    point_type=7,
+    point_size=2,
+    color="red",
+    points(compose3dpoints(relxS, relyS, relzS))
+));
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 나중에 사용하거나 다른 분석 도구에서 사용할 수 있도록 계산 결과를 저장한다. 
+   특히 gnuplot에서 사용하는 경우를 생각하여 csv 파일 형태로 저장한다. */
+/* ***주의*** 시뮬레이션 방법을 변경했을 때는 파일 이름을 다르게 해주는 것을 잊지 않도록 하자 */
+filep: openw("Trojan0.99vJ-vz0.1vJ.txt")$
+printf(filep, "t xS yS zS vxS vyS vzS xJ yJ zJ vxJ vyJ vzJ xT yT zT vxT vyT vzT~%")$
+write_data(sol, filep, space)$
+close(filep)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 회전좌표계로 변환한 결과도 따로 저장한다. */
+filep: openw("Trojan0.99vJ-vz0.1vJ_rot.txt");
+nn: length(ts)$
+printf(filep, "t relxS relyS relxJ relxJ relxT relyT~%")$
+write_data(makelist([ts[i],relxS[i],relyS[i],relxJ[i],relyJ[i],Trojrelx[i],Trojrely[i]], i, 1,nn), filep, " ");
+close(filep)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: title   start ]
+동영상 제작
+   [wxMaxima: title   end   ] */
+
+
+/* [wxMaxima: comment start ]
+시뮬레이션 결과를 동영상으로 만들어 본다:
+   [wxMaxima: comment end   ] */
+
+
+/* [wxMaxima: input   start ] */
+nn: length(sol2);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 동영상 제작을 위한 준비 단계: 각 장면의 그림을 목록으로 준비한다. */
+/* 관성좌표계, 2차원 (xy 평면) */
+scenes: []$
+
+day: 24*60*60$ /* 시뮬레이션 결과는 초(s) 단위이므로 화면에 날짜 단위로 표시하기 위해 환산이 필요하다 */
+
+for i:1 thru nn do (
+    istart: max(1,i-10),
+    iend: min(i,nn),
+    title_str: printf(false,"Jupiter and Trojan in the inertial coord. at day ~d",floor(ts[iend]/day)),
+    scenes: append(scenes, [gr2d(
+                proportional_axes = xy,
+                xrange = [-1e12, 1e12],
+                yrange = [-1e12, 1e12],
+                title = title_str,
+                xlabel = "x'' [m]",
+                ylabel = "y'' [m]",
+                grid=true,
+                points_joined = true,
+                point_size = 0,
+                color = dark_turquoise,
+                points(compose2dpoints(ithruj(soln[3][1],istart,iend), ithruj(soln[3][2],istart,iend))),
+                color = green,
+                points(compose2dpoints(ithruj(soln[2][1],istart,iend), ithruj(soln[2][2],istart,iend))),
+                color = orange,
+                points(compose2dpoints(ithruj(soln[1][1],istart,iend), ithruj(soln[1][2],istart,iend))),
+                key = "Trojan",
+                point_size=.5,
+                points_joined=false,
+                point_type = 7,
+                color = navy,
+                points([[soln[3][1][iend], soln[3][2][iend]]]),
+                key = "Jupiter",
+                point_size = 1,
+                color = dark_green,
+                points([[soln[2][1][iend], soln[2][2][iend]]]),
+                key = "Sun",
+                point_size = 2,
+                color = red,
+                points([[soln[1][1][iend], soln[1][2][iend]]])
+            )]
+    )
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 장면 하나를 출력하여 확인해 본다. */
+wxdraw(
+    scenes[nn]
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 준비한 장면들을 동영상 파일로 출력한다. 
+  시간이 오래 걸릴 수 있으므로 처음에는
+     scenes 
+  대신에 
+      ithruj(scenes, 1,10)
+  과 같이 
+  장면의 일부분만을 출력해 보고
+  실행시간을 확인한 뒤에 
+  장면의 수나 플로팅할 데이타 포인트의 
+  수 등을 적절히 조정해 본다.*/
+draw(
+    delay = 10,
+    file_name = "trojan0.99vJ_0.1vJ",
+    terminal = 'animated_gif,
+    scenes
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 회전하는 좌표계, 2차원(xy 평면) */
+
+scenes: []$
+
+day: 24*60*60$
+for i:1 thru nn do (
+    istart: max(1,max(1,i-10)),
+    iend: min(i,nn),
+    title_str: printf(false,
+        "Jupiter and Trojan in rot. coord. at day ~d",
+        floor(ts[iend]/day)),
+    scenes: append(scenes, [gr2d(
+                proportional_axes = xy,
+                xrange = [-1e12, 1e12],
+                yrange = [-1e12, 1e12],
+                title = title_str,
+                xlabel = "x'' [m]",
+                ylabel = "y'' [m]",
+                grid=true,
+                points_joined = true,
+                point_size = 0,
+                color = cyan,
+                points(compose2dpoints(ithruj(Trojrelx,1,iend), ithruj(Trojrely,1,iend))),
+                color = navy,
+                points(compose2dpoints(ithruj(Trojrelx,istart,iend), ithruj(Trojrely,istart,iend))),
+                color = green,
+                points(compose2dpoints(ithruj(relxJ,istart,iend), ithruj(relyJ,istart,iend))),
+                color = orange,
+                points(compose2dpoints(ithruj(relxS,istart,iend), ithruj(relyS,istart,iend))),
+                key = "Trojan",
+                point_size=.5,
+                points_joined=false,
+                point_type = 7,
+                color = navy,
+                points([[Trojrelx[iend], Trojrely[iend]]]),
+                key = "Jupiter",
+                point_size = 1,
+                color = dark_green,
+                points([[relxJ[iend], relyJ[iend]]]),
+                key = "Sun",
+                point_size = 2,
+                color = red,
+                points([[relxS[iend], relyS[iend]]])
+            )]
+    )
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+wxdraw(
+    scenes[nn]
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+draw(
+    delay = 10,
+    file_name = "trojan0.99vJ_0.1vJ_rot",
+    terminal = 'animated_gif,
+    scenes
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+length(ts);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+day:24*60*60;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+ts[500]/day;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+nn : length(ts);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+length(Trojrelx);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 3차원 동영상 제작을 위한 준비 및 실험 */
+ii:50$
+istart: max(1,max(1,ii-10))$
+iend: min(ii,nn)$
+zmin: -1e12$
+title_str: printf(false,
+    "Jupiter and Trojan in rot. coord. at day ~d",
+    floor(ts[iend]/day))$
+draw3d(
+    proportional_axes = xyz,
+    xrange = [-1e12, 1e12],
+    yrange = [-1e12, 1e12],
+    zrange = [-1e12, 1e12],
+    xyplane = zmin,
+    view = [(100-ii)/3, ii],
+    title = title_str,
+    xlabel = "x'' [m]",
+    ylabel = "y'' [m]",
+    zlabel = "z'' [m]",
+    grid=true,
+    
+    /* 그림자 */
+    /* Shadows on the bottom plane give you visual cue for
+      points in the 3D space. */
+    points_joined=true,
+    point_size=0,
+    grid=true,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+            compose3dpoints(ithruj(Trojrelx,1,iend),
+            ithruj(Trojrely,1,iend), 
+            ithruj(Trojrelz,1,iend)))),
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+            [[Trojrelx[iend], Trojrely[iend], Trojrelz[iend]]])),
+    points_joined=false,
+    point_type=7,
+    point_size=1,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+            [[relxJ[iend], relyJ[iend], relzJ[iend]]])),
+    point_type=7,
+    point_size=2,
+    color='gray,
+    points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+            [[relxS[iend], relyS[iend], relzS[iend]]])),
+    
+    /* 천체들 */
+    points_joined = true,
+    point_size = 0,
+    color = dark_turquoise,
+    points(compose3dpoints(ithruj(Trojrelx,1,iend),
+            ithruj(Trojrely,1,iend), 
+            ithruj(Trojrelz,1,iend))),
+    color = green,
+    points(compose3dpoints(ithruj(relxJ,istart,iend), 
+            ithruj(relyJ,istart,iend),
+            ithruj(relzJ,istart,iend))),
+    color = orange,
+    points(compose3dpoints(ithruj(relxS,istart,iend), 
+            ithruj(relyS,istart,iend),
+            ithruj(relzS,istart,iend))),
+    key = "Trojan",
+    point_size=.5,
+    points_joined=false,
+    point_type = 7,
+    color = navy,
+    points([[Trojrelx[iend], Trojrely[iend], Trojrelz[iend]]]),
+    key = "Jupiter",
+    point_size = 1,
+    color = dark_green,
+    points([[relxJ[iend], relyJ[iend], relzJ[iend]]]),
+    key = "Sun",
+    point_size = 2,
+    color = red,
+    points([[relxS[iend], relyS[iend], relzS[iend]]])
+);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+mod(9.8, 2*%pi),numer;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+nn;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+ts[nn]/1e9;
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 3차원 동영상 제작을 위한 장면들을 만든다 */
+scenes: []$
+ni: length(sol2)$
+day: 24*60*60$
+zmin: -1e12$
+for i:1 thru ni do (
+    istart: max(1,max(1,i-10)),
+    iend: min(i,nn),
+    title_str: printf(false,"Jupiter and Trojan in rot. coord. at day ~d",floor(ts[iend]/day)),
+    scenes: append(scenes, [gr3d(
+                proportional_axes = 'xyz,
+                xrange = [-1e12, 1e12],
+                yrange = [-1e12, 1e12],
+                zrange = [-1e12, 1e12],
+                xyplane=zmin,
+                view = [40+ts[i]*1e-9, 360-mod(ts[i]*omega/10*180/%pi,360)],
+                title = title_str,
+                xlabel = "x'' [m]",
+                ylabel = "y'' [m]",
+                zlabel = "z'' [m]",
+                grid=true,
+                
+                /* 그림자 */
+                points_joined=true,
+                point_size=0,
+                grid=true,
+                color='gray,
+                points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+                        compose3dpoints(ithruj(Trojrelx,1,iend),
+                        ithruj(Trojrely,1,iend), 
+                        ithruj(Trojrelz,1,iend)))),
+                points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+                        [[Trojrelx[iend], Trojrely[iend], Trojrelz[iend]]])),
+                points_joined=false,
+                point_type=7,
+                point_size=1,
+                color='gray,
+                points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+                        [[relxJ[iend], relyJ[iend], relzJ[iend]]])),
+                point_type=7,
+                point_size=2,
+                color='gray,
+                points(map(lambda([r],r*[1,1,0]+[0,0,zmin]),
+                        [[relxS[iend], relyS[iend], relzS[iend]]])),
+                                
+                /* 천체들 */
+                points_joined = true,
+                point_size = 0,
+                color = cyan,
+                points(compose3dpoints(ithruj(Trojrelx,1,iend),
+                        ithruj(Trojrely,1,iend), 
+                        ithruj(Trojrelz,1,iend))),
+                color = dark_turquoise,
+                points(compose3dpoints(ithruj(Trojrelx,istart,iend),
+                        ithruj(Trojrely,istart,iend), 
+                        ithruj(Trojrelz,istart,iend))),
+                key = "Trojan",
+                point_size=.2,
+                points_joined=false,
+                point_type = 7,
+                color = navy,                
+                points([[Trojrelx[iend], Trojrely[iend], Trojrelz[iend]]]),
+                key = "Jupiter",
+                point_size = 0.5,
+                color = dark_green,
+                points([[relxJ[iend], relyJ[iend], relzJ[iend]]]),
+                key = "Sun",
+                point_size = 1,
+                color = red,
+                points([[relxS[iend], relyS[iend], relzS[iend]]])
+            )]
+        )
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 확인을 위해 장면 하나를 출력해 본다. */
+wxdraw(
+    scenes[nn]
+)$
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 만들어둔 장면들을 동영상으로 출력한다. */
+draw(
+    delay = 10,
+    file_name = "trojan0.99vJ_0.1vJ_rot-2",
+    terminal = 'animated_gif,
+    scenes
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+/* [wxMaxima: input   start ] */
+/* 고해상도 동영상을 만들기 위해 우선 PDF 파일로 출력한다. */
+/* 이후 imagemagick으로 PDF 파일의 각 페이지를 PNG 파일로 변환한 다음
+   FFMPEG 등으로 처리하여 mp4 또는 avi 동영상으로 만들 수 있다. */
+draw(
+    file_name = "trojan0.99vJ_0.1vJ_rot-2",
+    dimensions = 300*[6,5],
+    terminal = 'multipage_pdfcairo,
+    scenes
+)$
+time(%);
+/* [wxMaxima: input   end   ] */
+
+
+
