@@ -1,0 +1,21 @@
+/* [wxMaxima: input   start ] */
+/* Removes given pattern(pat) from start 
+   and end of the given string(str). */
+
+strim(pat,str):=block([str1,tap,n],
+    str1: str,
+    n:slength(pat),
+    while smismatch(pat, str1)>n do (
+        str1: sremovefirst(pat, str1)
+    ),
+    str1: sreverse(str1),
+    tap: sreverse(pat),
+    while smismatch(tap,str1)>n do (
+        str1: sremovefirst(tap, str1)
+    ),
+    sreverse(str1)
+)$
+/* [wxMaxima: input   end   ] */
+
+
+
